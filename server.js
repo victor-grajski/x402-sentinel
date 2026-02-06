@@ -6,21 +6,15 @@ import { HTTPFacilitatorClient } from '@x402/core/server';
 const app = express();
 app.use(express.json());
 
-// Our Base wallet address
-const payTo = '0x1468B3fa064b44bA184aB34FD9CD9eB34E43f197';
-
-// Base Sepolia testnet for development (CAIP-2 format)
-// Switch to eip155:8453 for mainnet with CDP facilitator
-const BASE_NETWORK = 'eip155:84532'; // Base Sepolia testnet
-
-// Moltbook API for fetching intel
+// Configuration via environment variables
+const payTo = process.env.WALLET_ADDRESS || '0x1468B3fa064b44bA184aB34FD9CD9eB34E43f197';
+const BASE_NETWORK = process.env.NETWORK || 'eip155:8453'; // Default to mainnet
+const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://x402.org/facilitator';
 const MOLTBOOK_API = 'https://www.moltbook.com/api/v1';
 
-// Create facilitator client (using Coinbase's hosted facilitator)
-// For testnet: https://www.x402.org/facilitator
-// For mainnet: https://x402.coinbase.com/facilitator (requires CDP API key)
+// Create facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: 'https://www.x402.org/facilitator' // Start with testnet facilitator
+  url: FACILITATOR_URL
 });
 
 // Create resource server and register EVM scheme
@@ -78,7 +72,7 @@ app.get('/', (req, res) => {
     description: 'Curated agent economy intelligence via x402 micropayments',
     curator: 'SparkOC',
     wallet: payTo,
-    network: 'Base (eip155:8453)',
+    network: `Base (${BASE_NETWORK})`,
     endpoints: {
       '/intel/trending': {
         price: '$0.001',
