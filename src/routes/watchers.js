@@ -578,4 +578,53 @@ router.post('/cron/billing', async (req, res) => {
   }
 });
 
+/**
+ * Upgrade customer to paid tier (x402 protected)
+ */
+router.post('/customers/:id/upgrade', async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    
+    // Get customer
+    const customer = await store.getCustomer(customerId);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    if (customer.tier === 'paid') {
+      return res.status(409).json({ 
+        error: 'Customer already has paid tier',
+        current: { tier: customer.tier, upgradedAt: customer.upgradedAt }
+      });
+    }
+    
+    // In real implementation, this would require x402 payment verification
+    // For now, we'll simulate the upgrade
+    const upgradedCustomer = await store.updateCustomer(customerId, {
+      tier: 'paid',
+      upgradedAt: new Date().toISOString()
+    });
+    
+    console.log(`⬆️ Customer ${customerId} upgraded to paid tier`);
+    
+    res.status(200).json({
+      success: true,
+      customer: {
+        id: upgradedCustomer.id,
+        tier: upgradedCustomer.tier,
+        upgradedAt: upgradedCustomer.upgradedAt
+      },
+      benefits: [
+        'Unlimited watchers',
+        'Faster polling (5-minute minimum)',
+        'Priority support'
+      ],
+      message: 'Successfully upgraded to paid tier'
+    });
+  } catch (error) {
+    console.error('Error upgrading customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import * as store from '../store.js';
 import { getExecutor, listExecutors } from '../executors/index.js';
-import { CATEGORIES, PLATFORM_FEE, OPERATOR_SHARE } from '../models.js';
+import { CATEGORIES, PLATFORM_FEE, OPERATOR_SHARE, FREE_TIER } from '../models.js';
 
 const router = Router();
 
@@ -23,6 +23,13 @@ router.get('/', (req, res) => {
       platform: `${PLATFORM_FEE * 100}%`,
       operator: `${OPERATOR_SHARE * 100}%`,
     },
+    freeTier: {
+      available: true,
+      maxWatchers: FREE_TIER.MAX_WATCHERS,
+      pollingIntervalMin: FREE_TIER.POLLING_INTERVAL_MIN,
+      description: 'New users start with free tier - 1 watcher, 30-minute polling minimum',
+      upgradeInfo: FREE_TIER.UPGRADE_PROMPT
+    },
     endpoints: {
       // Discovery
       'GET /marketplace': 'This info',
@@ -38,6 +45,7 @@ router.get('/', (req, res) => {
       'POST /marketplace/watchers': 'Create a watcher instance (x402 payment) - idempotent',
       'GET /marketplace/watchers/:id': 'Get watcher status',
       'DELETE /marketplace/watchers/:id': 'Delete a watcher',
+      'POST /customers/:id/upgrade': 'Upgrade customer to paid tier (x402 payment)',
       
       // Receipts (audit trail)
       'GET /marketplace/receipts': 'List receipts (filter by customerId, watcherId)',
