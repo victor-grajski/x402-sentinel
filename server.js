@@ -13,6 +13,7 @@ import { facilitator as cdpFacilitatorConfig, createCdpAuthHeaders } from '@coin
 
 import marketplaceRoutes from './src/routes/marketplace.js';
 import watcherRoutes from './src/routes/watchers.js';
+import cronRoutes from './src/routes/cron.js';
 import testWebhookRoutes from './src/routes/test-webhook.js';
 import * as store from './src/store.js';
 
@@ -100,6 +101,7 @@ async function initializeApp() {
   // Mount routes
   app.use('/marketplace', marketplaceRoutes);
   app.use('/api', watcherRoutes);
+  app.use('/api', cronRoutes);
   app.use('/', testWebhookRoutes);  // Free endpoint, no payment required
   
   // ============================================
