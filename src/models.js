@@ -63,7 +63,11 @@ export const WatcherSchema = {
   pollingInterval: 'number', // minutes between checks (5, 15, 30, 60)
   ttl: 'number?',         // hours until expiry (24, 72, 168, null)
   retryPolicy: 'object',  // { maxRetries: number, backoffMs: number }
-  tier: 'string?'         // "free" | "paid" - indicates tier when created
+  tier: 'string?',        // "free" | "paid" - indicates tier when created
+  // SLA tracking
+  sla: 'object',          // { uptimePercent: number, violationCount: number, lastViolation: string?, downtimePeriods: array }
+  lastCheckSuccess: 'boolean?', // true if last check succeeded, false if failed
+  consecutiveFailures: 'number', // count of consecutive failures (reset on success)
 };
 
 /**
@@ -159,4 +163,46 @@ export const BillingRecordSchema = {
   status: 'string',          // 'success', 'failed', 'suspended'
   paymentId: 'string?',      // linked payment record (if successful)
   failureReason: 'string?',  // error message if failed
+};
+
+/**
+ * SLA Violation - Record of SLA breach with automatic refund/credit logic
+ */
+export const SLAViolationSchema = {
+  id: 'string',              // unique violation ID
+  watcherId: 'string',       // affected watcher
+  operatorId: 'string',      // responsible operator
+  customerId: 'string',      // affected customer
+  violationType: 'string',   // 'uptime', 'response_time', 'consecutive_failures'
+  threshold: 'number',       // SLA threshold that was breached
+  actualValue: 'number',     // actual measured value
+  startTime: 'string',       // when violation period started
+  endTime: 'string',         // when violation period ended
+  durationMinutes: 'number', // total violation duration
+  autoRefund: 'boolean',     // whether automatic refund was triggered
+  refundAmount: 'number?',   // amount refunded (if applicable)
+  refundId: 'string?',       // linked refund record
+  createdAt: 'string',       // when violation was detected
+  acknowledged: 'boolean',   // whether operator acknowledged the issue
+  resolution: 'string?',     // operator's explanation/fix
+};
+
+/**
+ * Downtime Period - Track periods when a watcher was failing
+ */
+export const DowntimePeriodSchema = {
+  startTime: 'string',       // when downtime started
+  endTime: 'string?',        // when downtime ended (null if ongoing)
+  durationMinutes: 'number?', // calculated duration
+  reason: 'string?',         // failure reason
+  resolved: 'boolean',       // whether issue was resolved
+};
+
+// SLA Configuration
+export const SLA_CONFIG = {
+  DEFAULT_UPTIME_THRESHOLD: 99.0,    // 99% uptime SLA
+  CONSECUTIVE_FAILURE_LIMIT: 5,       // Max consecutive failures before violation
+  VIOLATION_REFUND_PERCENT: 0.5,     // 50% refund on SLA violation
+  MEASUREMENT_WINDOW_HOURS: 24,      // Calculate SLA over 24-hour windows
+  GRACE_PERIOD_MINUTES: 15,          // Grace period before marking as violation
 };

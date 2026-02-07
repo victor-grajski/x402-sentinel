@@ -14,6 +14,7 @@ const WATCHERS_FILE = path.join(DATA_DIR, 'watchers.json');
 const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'receipts.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.json');
+const SLA_VIOLATIONS_FILE = path.join(DATA_DIR, 'sla-violations.json');
 
 // Helpers
 async function ensureDataDir() {
@@ -185,6 +186,15 @@ export async function createWatcher(watcher) {
     billingHistory: [],
     cancelledAt: null,
     cancellationReason: null,
+    // Initialize SLA tracking
+    sla: {
+      uptimePercent: 100,
+      violationCount: 0,
+      lastViolation: null,
+      downtimePeriods: []
+    },
+    lastCheckSuccess: null,
+    consecutiveFailures: 0,
   };
   data.watchers.push(newWatcher);
   await writeJson(WATCHERS_FILE, data);
@@ -220,8 +230,17 @@ export async function getPayments(filters = {}) {
   if (filters.customerId) {
     payments = payments.filter(p => p.customerId === filters.customerId);
   }
+  if (filters.watcherId) {
+    payments = payments.filter(p => p.watcherId === filters.watcherId);
+  }
+  if (filters.since) {
+    payments = payments.filter(p => p.createdAt >= filters.since);
+  }
+  if (filters.type) {
+    payments = payments.filter(p => p.type === filters.type);
+  }
   
-  return payments;
+  return payments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 export async function createPayment(payment) {
@@ -365,4 +384,56 @@ export async function createReceipt(receipt) {
   data.receipts.push(newReceipt);
   await writeJson(RECEIPTS_FILE, data);
   return newReceipt;
+}
+
+// SLA Violations
+
+export async function getSLAViolations(filters = {}) {
+  const data = await readJson(SLA_VIOLATIONS_FILE, { violations: [] });
+  let violations = data.violations;
+  
+  if (filters.watcherId) {
+    violations = violations.filter(v => v.watcherId === filters.watcherId);
+  }
+  if (filters.operatorId) {
+    violations = violations.filter(v => v.operatorId === filters.operatorId);
+  }
+  if (filters.customerId) {
+    violations = violations.filter(v => v.customerId === filters.customerId);
+  }
+  if (filters.violationType) {
+    violations = violations.filter(v => v.violationType === filters.violationType);
+  }
+  if (filters.since) {
+    violations = violations.filter(v => v.createdAt >= filters.since);
+  }
+  
+  return violations.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+export async function getSLAViolation(id) {
+  const violations = await getSLAViolations();
+  return violations.find(v => v.id === id);
+}
+
+export async function createSLAViolation(violation) {
+  const data = await readJson(SLA_VIOLATIONS_FILE, { violations: [] });
+  const newViolation = {
+    id: 'sla_' + generateId(),
+    ...violation,
+    createdAt: new Date().toISOString(),
+  };
+  data.violations.push(newViolation);
+  await writeJson(SLA_VIOLATIONS_FILE, data);
+  return newViolation;
+}
+
+export async function updateSLAViolation(id, updates) {
+  const data = await readJson(SLA_VIOLATIONS_FILE, { violations: [] });
+  const index = data.violations.findIndex(v => v.id === id);
+  if (index === -1) return null;
+  
+  data.violations[index] = { ...data.violations[index], ...updates };
+  await writeJson(SLA_VIOLATIONS_FILE, data);
+  return data.violations[index];
 }
