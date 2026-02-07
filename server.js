@@ -1,3 +1,7 @@
+// Polyfill crypto for Node 18 (x402/coinbase needs Web Crypto API)
+import { webcrypto } from 'crypto';
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
+
 import express from 'express';
 import { paymentMiddleware, x402ResourceServer } from '@x402/express';
 import { ExactEvmScheme } from '@x402/evm/exact/server';

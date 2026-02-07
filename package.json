@@ -4,6 +4,9 @@
   "description": "Curated agent economy intelligence via x402 micropayments",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
