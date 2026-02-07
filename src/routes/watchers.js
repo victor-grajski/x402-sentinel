@@ -19,8 +19,10 @@ import {
   POLLING_INTERVALS, 
   TTL_OPTIONS, 
   MAX_RETRIES_LIMIT, 
-  DEFAULT_POLLING 
+  DEFAULT_POLLING,
+  FREE_TIER 
 } from '../models.js';
+import { checkDueBillings, processBilling, processAllDueBillings } from '../billing.js';
 
 const router = Router();
 
@@ -36,8 +38,45 @@ const PLATFORM_WALLET = process.env.PLATFORM_WALLET || process.env.WALLET_ADDRES
  */
 router.post('/watchers', async (req, res) => {
   try {
-    const { typeId, config, webhook, customerId: rawCustomerId, billingCycle = 'one-time' } = req.body;
+    const { 
+      typeId, 
+      config, 
+      webhook, 
+      customerId: rawCustomerId, 
+      billingCycle = 'one-time',
+      // Polling configuration options
+      pollingInterval = DEFAULT_POLLING.pollingInterval,
+      ttl = DEFAULT_POLLING.ttl,
+      retryPolicy = DEFAULT_POLLING.retryPolicy
+    } = req.body;
     const customerId = rawCustomerId || req.headers['x-customer-id'] || 'anonymous';
+    
+    // Validate polling configuration
+    if (!POLLING_INTERVALS.includes(pollingInterval)) {
+      return res.status(400).json({ 
+        error: 'Invalid pollingInterval',
+        allowed: POLLING_INTERVALS 
+      });
+    }
+    
+    if (ttl !== null && !TTL_OPTIONS.slice(0, -1).includes(ttl)) { // exclude null from validation
+      return res.status(400).json({ 
+        error: 'Invalid ttl',
+        allowed: TTL_OPTIONS 
+      });
+    }
+    
+    if (typeof retryPolicy !== 'object' || 
+        typeof retryPolicy.maxRetries !== 'number' || 
+        typeof retryPolicy.backoffMs !== 'number' ||
+        retryPolicy.maxRetries > MAX_RETRIES_LIMIT ||
+        retryPolicy.maxRetries < 0) {
+      return res.status(400).json({ 
+        error: 'Invalid retryPolicy',
+        format: '{ maxRetries: number (0-5), backoffMs: number }',
+        maxRetries: MAX_RETRIES_LIMIT
+      });
+    }
     
     // Generate idempotency hash from request params
     const fulfillmentHash = store.generateFulfillmentHash({ 
@@ -63,10 +102,43 @@ router.post('/watchers', async (req, res) => {
       });
     }
     
+    // Customer management and free tier logic
+    let customer = await store.getCustomer(customerId);
+    if (!customer) {
+      // Create new customer with free tier
+      customer = await store.createCustomer({ id: customerId, tier: 'free' });
+      console.log(`🆕 Created new customer ${customerId} with free tier`);
+    }
+    
     // Get watcher type
     const type = await store.getWatcherType(typeId);
     if (!type) {
       return res.status(404).json({ error: 'Watcher type not found' });
+    }
+    
+    // Check free tier restrictions
+    if (customer.tier === 'free') {
+      // Check watcher limit
+      if (customer.freeWatchersUsed >= FREE_TIER.MAX_WATCHERS) {
+        return res.status(402).json({
+          error: 'Free tier limit exceeded',
+          message: FREE_TIER.UPGRADE_PROMPT,
+          current: { 
+            watchersUsed: customer.freeWatchersUsed, 
+            maxWatchers: FREE_TIER.MAX_WATCHERS 
+          },
+          upgrade: {
+            endpoint: `/customers/${customerId}/upgrade`,
+            benefits: ['Unlimited watchers', 'Faster polling (5-minute minimum)', 'Priority support']
+          }
+        });
+      }
+      
+      // Enforce minimum polling interval for free tier
+      if (pollingInterval < FREE_TIER.POLLING_INTERVAL_MIN) {
+        console.log(`⚠️ Free tier: forcing 30-min polling (requested: ${pollingInterval})`);
+        pollingInterval = FREE_TIER.POLLING_INTERVAL_MIN;
+      }
     }
     
     // Get operator
@@ -121,6 +193,9 @@ router.post('/watchers', async (req, res) => {
       webhook,
       billingCycle,
       nextBillingAt,
+      pollingInterval,
+      ttl,
+      retryPolicy,
     });
     
     // Record payment (in real implementation, this comes from x402 middleware)
@@ -445,6 +520,61 @@ router.get('/watchers/:id/billing', async (req, res) => {
   } catch (error) {
     console.error('Error fetching billing info:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Cron endpoint - process due billings
+ */
+router.post('/cron/billing', async (req, res) => {
+  const startTime = Date.now();
+  
+  try {
+    console.log('🔄 Starting billing cycle...');
+    
+    // Check what billings are due
+    const dueBillings = await checkDueBillings();
+    console.log(`📋 Found ${dueBillings.length} watchers with due billings`);
+    
+    if (dueBillings.length === 0) {
+      return res.json({
+        success: true,
+        summary: {
+          totalDue: 0,
+          successful: 0,
+          failed: 0,
+          suspended: 0,
+        },
+        message: 'No billing due',
+        durationMs: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    
+    // Process all due billings
+    const results = await processAllDueBillings();
+    
+    console.log(`💰 Billing cycle complete: ${results.successful} successful, ${results.failed} failed, ${results.suspended} suspended`);
+    
+    res.json({
+      success: true,
+      summary: {
+        totalDue: results.totalDue,
+        successful: results.successful,
+        failed: results.failed,
+        suspended: results.suspended,
+      },
+      details: results.details,
+      durationMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Billing cron error:', error);
+    res.status(500).json({ 
+      error: 'Billing cron failed',
+      message: error.message,
+      durationMs: Date.now() - startTime,
+    });
   }
 });
 
