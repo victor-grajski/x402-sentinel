@@ -13,6 +13,7 @@ import { facilitator as cdpFacilitatorConfig, createCdpAuthHeaders } from '@coin
 
 import marketplaceRoutes from './src/routes/marketplace.js';
 import watcherRoutes from './src/routes/watchers.js';
+import testWebhookRoutes from './src/routes/test-webhook.js';
 import * as store from './src/store.js';
 
 const app = express();
@@ -99,6 +100,7 @@ async function initializeApp() {
   // Mount routes
   app.use('/marketplace', marketplaceRoutes);
   app.use('/api', watcherRoutes);
+  app.use('/', testWebhookRoutes);  // Free endpoint, no payment required
   
   // ============================================
   // PUBLIC ENDPOINTS
@@ -129,6 +131,9 @@ async function initializeApp() {
         // Operator actions (free)
         'POST /marketplace/operators': 'Register as an operator',
         'POST /marketplace/types': 'Create a watcher type',
+        
+        // Testing (free)
+        'POST /test-webhook': 'Test webhook URL before subscribing (free)',
         
         // Customer actions (x402 paid)
         'POST /api/watchers': 'Create a watcher instance ($0.01+) - idempotent with receipts',
