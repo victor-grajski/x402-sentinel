@@ -193,8 +193,48 @@ async function initializeApp() {
   });
 }
 
+// Auto-seed marketplace if empty
+async function autoSeed() {
+  const operators = await store.getOperators();
+  if (operators.length > 0) return;
+  
+  console.log('🌱 Auto-seeding marketplace...');
+  
+  // Register SparkOC as first operator
+  const operator = await store.createOperator({
+    name: 'SparkOC',
+    wallet: PLATFORM_WALLET,
+    description: 'Platform operator. Built-in watchers for wallet balances and token prices.',
+    website: 'https://github.com/victor-grajski/x402-intel',
+  });
+  
+  // Create wallet balance watcher type
+  await store.createWatcherType({
+    operatorId: operator.id,
+    name: 'Wallet Balance Alert',
+    category: 'wallet',
+    description: 'Get notified when a wallet balance goes above or below a threshold. Supports Base, Ethereum, Optimism, and Arbitrum.',
+    price: 0.01,
+    executorId: 'wallet-balance',
+  });
+  
+  // Create token price watcher type
+  await store.createWatcherType({
+    operatorId: operator.id,
+    name: 'Token Price Alert',
+    category: 'price',
+    description: 'Get notified when a token price crosses a threshold. Uses CoinGecko for price data.',
+    price: 0.01,
+    executorId: 'token-price',
+  });
+  
+  console.log('✅ Marketplace seeded with SparkOC operator and 2 watcher types');
+}
+
 // Boot
-initializeApp().catch(err => {
-  console.error('Failed to start:', err);
-  process.exit(1);
-});
+initializeApp()
+  .then(() => autoSeed())
+  .catch(err => {
+    console.error('Failed to start:', err);
+    process.exit(1);
+  });
