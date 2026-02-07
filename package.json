@@ -1,7 +1,7 @@
 {
   "name": "x402-intel",
   "version": "1.0.0",
-  "description": "Curated agent economy intelligence via x402 micropayments",
+  "description": "Execution services for agents: watchers, alerts, automations via x402 micropayments",
   "main": "server.js",
   "type": "module",
   "engines": {
@@ -25,6 +25,7 @@
     "@x402/evm": "^2.3.0",
     "@x402/express": "^2.3.0",
     "dotenv": "^17.2.4",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "viem": "^2.45.1"
   }
 }
